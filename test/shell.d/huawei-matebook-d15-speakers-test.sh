@@ -15,9 +15,19 @@ pass "the MateBook D 15 speaker quirk runs during hardware setup"
 [[ -n $migration ]] || fail "a migration reaches existing MateBook D 15 installs"
 pass "a migration reaches existing MateBook D 15 installs"
 
+require_command modprobe
+real_modprobe=$(command -v modprobe)
+
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 mkdir -p "$test_tmp/bin"
+
+# The real modprobe parses the fixture directory, so continued lines and module
+# name spellings are its reading, not the test's.
+cat >"$test_tmp/bin/modprobe" <<SH
+#!/bin/bash
+exec "$real_modprobe" -C "\$OMARCHY_MODPROBE_DIR" "\$@"
+SH
 
 cat >"$test_tmp/bin/omarchy-hw-match" <<'SH'
 #!/bin/bash
@@ -88,6 +98,20 @@ for module in snd_soc_sof_es8336 snd-soc-sof-es8336; do
   [[ ! -e $conf ]] || fail "a quirk already set for the driver is left alone" "$module"
 done
 pass "a quirk already set for the driver is left alone"
+
+rm -rf "$modprobe_dir"
+mkdir -p "$modprobe_dir"
+printf 'options snd-soc-sof-es8336 \\\n  quirk=0x1a0\n' >"$modprobe_dir/sof-es8336.conf"
+run_leaf
+[[ ! -e $conf ]] || fail "a quirk set on a continued line is left alone"
+pass "a quirk set on a continued line is left alone"
+
+rm -rf "$modprobe_dir"
+mkdir -p "$modprobe_dir"
+printf 'options snd_soc_sof_es8336 dyndbg=+p\n' >"$modprobe_dir/sof-es8336.conf"
+run_leaf
+[[ -f $conf ]] || fail "other options for the driver do not count as a quirk"
+pass "other options for the driver do not count as a quirk"
 
 rm -rf "$modprobe_dir"
 mkdir -p "$modprobe_dir"

@@ -12,13 +12,19 @@
 # at least one of them, so this matches the version too. A quirk someone
 # already set for this driver is left alone.
 #
+# modprobe -c prints the configuration modprobe will apply: every config
+# directory and the kernel command line, with continued lines joined and module
+# names spelled with underscores. Only grep's answer counts, and grep reads all
+# of it, since a grep -q that stops early would leave modprobe writing into a
+# closed pipe.
+#
 # https://github.com/omacom/omarchy/issues/15825
 product_version="${OMARCHY_DMI_PRODUCT_VERSION:-/sys/class/dmi/id/product_version}"
 modprobe_dir="${OMARCHY_MODPROBE_DIR:-/etc/modprobe.d}"
 
 if omarchy-hw-match "BOHB-WAX9" &&
   grep -qx "M1280" "$product_version" 2>/dev/null &&
-  ! grep -Eqs '^[[:space:]]*options[[:space:]]+snd[-_]soc[-_]sof[-_]es8336[[:space:]].*quirk=' "$modprobe_dir"/*.conf; then
+  ! { modprobe -c 2>/dev/null || true; } | grep -E '^options snd_soc_sof_es8336 (.* )?quirk=' >/dev/null; then
   sudo install -Dm644 /dev/stdin "$modprobe_dir/huawei-matebook-d15-speakers.conf" <<'CONF'
 # Huawei MateBook D 15 M1280: the speaker amplifier is on GPIO1, not GPIO0.
 options snd_soc_sof_es8336 quirk=0x1b0
